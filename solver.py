@@ -1,6 +1,8 @@
 from itertools import permutations
 from typing import List, Tuple
+import pandas as pd
 import random
+import matplotlib.pyplot as plt
 from visualize import visualize_packing, visualize_dual_packing
 
 # Pallet dimensions in mm
@@ -32,7 +34,7 @@ class Placement:
                 f"Position (mm): {self.position} | "
                 f"Rotation (mm): {self.rotation}")
 
-boxes = [
+box_types = [
     Box("BELDOOS", 349, 246, 62),
     Box("DOOS VAN DALE 2", 350, 255, 220),
     Box("DOOSGR", 455, 310, 200),
@@ -160,35 +162,74 @@ def calculate_wasted_space(placements: List[Placement], pallet_dims: Tuple[int, 
 
     return used_volume, wasted_volume, wasted_percentage
 
+def calculate_instance_tightness(boxes: List[Box], pallet_dims: Tuple[int, int, int]) -> Tuple[int, float]:
+    total_box_volume = sum(l * w * h for box in boxes for (l, w, h) in [box.dimensions])
+    pallet_volume = pallet_dims[0] * pallet_dims[1] * pallet_dims[2]
+    tightness = total_box_volume / pallet_volume
+    return total_box_volume, tightness
+
 def main():
-    placements_shelf = solve_shelf_packing(boxes, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
-    placements_random = solve_random_packing(boxes, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT), max_attempts_per_box=1)
-    
-    print('-' * 20)
-    print(f"Statistics for shelf packing:\n")
-    for placement in placements_shelf:
-        print(placement)
-    
-    uv_shelf, wv_shelf, wp_shelf = calculate_wasted_space(placements_shelf, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
-    print(f"Used Volume: {uv_shelf} mm³")
-    print(f"Wasted Volume: {wv_shelf} mm³")
-    print(f"Wasted Space: {wp_shelf:.2f}%")
+    df = pd.read_csv("orders.csv")
+    results = []
 
-    print('-' * 20)
-    print(f"Statistics for random packing:\n")
-    for placement in placements_random:
-        print(placement)
-    
-    uv_random, wv_random, wp_random = calculate_wasted_space(placements_random, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
-    print(f"Used Volume: {uv_random} mm³")
-    print(f"Wasted Volume: {wv_random} mm³")
-    print(f"Wasted Space: {wp_random:.2f}%")
+    for i, row in df.iterrows():
+        boxes = []
+        for j, k in enumerate(row):
+            for _ in range(k):
+                boxes.append(box_types[j])
+        
+        placements_shelf = solve_shelf_packing(boxes, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
+        placements_random = solve_random_packing(boxes, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT), max_attempts_per_box=10)
+        
+        total_box_vol, tightness = calculate_instance_tightness(boxes, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
+        print('-' * 20)
+        print(f"Instance Tightness:\n")
+        print(f"Total Box Volume: {total_box_vol} mm³")
+        print(f"Pallet Volume: {PALLET_LENGTH * PALLET_WIDTH * PALLET_HEIGHT} mm³")
+        print(f"Tightness: {tightness:.4f} ({tightness * 100:.2f}%)")
 
-    # visualize_packing(placements_shelf, title="Shelf Packing Visualization")
-    # visualize_packing(placements_random, title="Random Packing Visualization")
-    title_shelf = f"Shelf Packing - Wasted: {wp_shelf:.2f}%"
-    title_random = f"Random Packing - Wasted: {wp_random:.2f}%"
-    visualize_dual_packing(placements_shelf, placements_random, title_shelf, title_random)
+        print('-' * 20)
+        print(f"Statistics for shelf packing:\n")
+        for placement in placements_shelf:
+            print(placement)
+
+        
+        uv_shelf, wv_shelf, wp_shelf = calculate_wasted_space(placements_shelf, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
+        print(f"Used Volume: {uv_shelf} mm³")
+        print(f"Wasted Volume: {wv_shelf} mm³")
+        print(f"Wasted Space: {wp_shelf:.2f}%")
+
+        print('-' * 20)
+        print(f"Statistics for random packing:\n")
+        for placement in placements_random:
+            print(placement)
+        
+        uv_random, wv_random, wp_random = calculate_wasted_space(placements_random, (PALLET_LENGTH, PALLET_WIDTH, PALLET_HEIGHT))
+        print(f"Used Volume: {uv_random} mm³")
+        print(f"Wasted Volume: {wv_random} mm³")
+        print(f"Wasted Space: {wp_random:.2f}%")
+
+        # visualize_packing(placements_shelf, title="Shelf Packing Visualization")
+        # visualize_packing(placements_random, title="Random Packing Visualization")
+        title_shelf = f"Shelf Packing - Wasted: {wp_shelf:.2f}%"
+        title_random = f"Random Packing - Wasted: {wp_random:.2f}%"
+        visualize_dual_packing(placements_shelf, placements_random, title_shelf, title_random)
+        results.append((tightness, wp_shelf, wp_random))
+    tightnesses, shelf_ws, random_ws = zip(*results)
+
+    plt.figure(figsize=(10, 6))
+    plt.scatter(tightnesses, shelf_ws, label='Shelf Packing', marker='o')
+    plt.scatter(tightnesses, random_ws, label='Random Packing', marker='x')
+    plt.xlabel('Instance Tightness', fontsize = 16)
+    plt.ylabel('Wasted Space (%)', fontsize = 15)
+    plt.title('Tightness vs Wasted Space', fontsize = 16)
+    plt.xticks(fontsize = 15)
+    plt.yticks(fontsize = 15)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 
 
 if __name__ == '__main__':

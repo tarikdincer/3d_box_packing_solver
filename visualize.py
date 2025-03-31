@@ -67,11 +67,11 @@ def visualize_dual_packing(placements_a, placements_b, title_a="Packing A", titl
             center = [x + dx/2, y + dy/2, z + dz/2]
             plotter.add_point_labels(
                 [center], [name],
-                font_size=12, always_visible=True, shape_opacity=0.5,
+                font_size=16, always_visible=True, shape_opacity=0.5,
                 text_color='black', point_color='white'
             )
 
-        plotter.add_text(title, position='upper_left', font_size=10)
+        plotter.add_text(title, position='upper_left', font_size=16)
         plotter.show_bounds(grid='front', location='outer', all_edges=True)
         plotter.reset_camera()
         plotter.camera_position = 'iso'
